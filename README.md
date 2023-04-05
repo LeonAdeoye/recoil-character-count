@@ -1,70 +1,77 @@
-# Getting Started with Create React App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+**Atoms are units of state. They're updatable and subscribable: when an atom is updated, each subscribed component is re-rendered with the new value.** 
 
-## Available Scripts
+They can be created at runtime, too. Atoms can be used in place of React local component state. If the same atom is used from multiple components, all those components share their state.
 
-In the project directory, you can run:
+Atoms are created using the atom function:
+```
+const fontSizeState = atom({
+  key: 'fontSizeState',
+  default: 14,
+});
+```
 
-### `npm start`
+**Atoms need a unique key**, which is used for debugging, persistence, and for certain advanced APIs that let you see a map of all atoms. It is an error for two atoms to have the same key, so make sure they're globally unique. Like React component state, they also have a default value.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+**To read and write an atom from a component, we use a hook called useRecoilState.** It's just like React's useState, but now the state can be shared between components:
+```
+function FontButton() {
+  const [fontSize, setFontSize] = useRecoilState(fontSizeState);
+  return (
+    <button onClick={() => setFontSize((size) => size + 1)} style={{fontSize}}>
+      Click to Enlarge
+    </button>
+  );
+}
+```
+Clicking on the button will increase the font size of the button by one. But now some other component can also use the same font size:
+```
+function Text() {
+  const [fontSize, setFontSize] = useRecoilState(fontSizeState);
+  return <p style={{fontSize}}>This text will increase in size too.</p>;
+}
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Selectors
+**A selector is a pure function that accepts atoms or other selectors as input.** When these upstream atoms or selectors are updated, the selector function will be re-evaluated. Components can subscribe to selectors just like atoms, and will then be re-rendered when the selectors change.
 
-### `npm test`
+**Selectors are used to calculate derived data that is based on state. This lets us avoid redundant state because a minimal set of state is stored in atoms, while everything else is efficiently computed as a function of that minimal state.** Since selectors keep track of what components need them and what state they depend on, they make this functional approach very efficient.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+From the point of view of components, selectors and atoms have the same interface and can therefore be substituted for one another.
 
-### `npm run build`
+Selectors are defined using the selector function:
+```
+const fontSizeLabelState = selector({
+  key: 'fontSizeLabelState',
+  get: ({get}) => {
+    const fontSize = get(fontSizeState);
+    const unit = 'px';
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+    return `${fontSize}${unit}`;
+  },
+});
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+**The get property is the function that is to be computed.** It can access the value of atoms and other selectors using the get argument passed to it. Whenever it accesses another atom or selector, a dependency relationship is created such that updating the other atom or selector will cause this one to be recomputed.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+In this fontSizeLabelState example, the selector has one dependency: the fontSizeState atom. Conceptually, the fontSizeLabelState selector behaves like a pure function that takes a fontSizeState as input and returns a formatted font size label as output.
 
-### `npm run eject`
+**Selectors can be read using useRecoilValue(), which takes an atom or selector as an argument and returns the corresponding value.** We don't use the useRecoilState() as the fontSizeLabelState selector is not writeable (see the selector API reference for more information on writeable selectors):
+```
+function FontButton() {
+  const [fontSize, setFontSize] = useRecoilState(fontSizeState);
+  const fontSizeLabel = useRecoilValue(fontSizeLabelState);
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+  return (
+    <>
+      <div>Current font size: {fontSizeLabel}</div>
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+      <button onClick={() => setFontSize(fontSize + 1)} style={{fontSize}}>
+        Click to Enlarge
+      </button>
+    </>
+  );
+}
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Clicking on the button now does two things: it increases the font size of the button while also updating the font size label to reflect the current font size.
